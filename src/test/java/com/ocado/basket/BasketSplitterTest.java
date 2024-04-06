@@ -1,20 +1,23 @@
 package com.ocado.basket;
 
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.jupiter.params.ParameterizedTest;
 
-import java.io.FileReader;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class BasketSplitterTest {
+
+    private BasketSplitter basket;
+
+    @Before
+    public void setUp(){
+        basket = new BasketSplitter("C:\\Users\\darek\\IdeaProjects\\untitled1\\src\\test\\java\\com\\ocado\\basket\\config.json");
+    }
 
     @Test
     public void configFileShouldReturnRuntimeExceptionOnLoadingIncorrectPath(){
@@ -28,7 +31,6 @@ public class BasketSplitterTest {
 
     @Test
     public void splitShouldReturnMap() {
-        var basket = new BasketSplitter("C:\\Users\\darek\\IdeaProjects\\untitled1\\src\\test\\java\\com\\ocado\\basket\\config.json");
         List<String> items = List.of("Dc Hikiage Hira Huba", "Longos - Chicken Curried");
         Map<String, List<String>> expected = Map.of("Dc Hikiage Hira Huba", List.of("In-store pick-up", "Next day shipping"), "Longos - Chicken Curried", List.of("Express Collection", "Same day delivery", "Courier"));
         Assert.assertEquals(expected, basket.filterConfigByItems(items));
@@ -37,7 +39,6 @@ public class BasketSplitterTest {
 
     @Test
     public void splitShouldReturnMapWithLeastDeliveryGroups() {
-        var basket = new BasketSplitter("C:\\Users\\darek\\IdeaProjects\\untitled1\\src\\test\\java\\com\\ocado\\basket\\config.json");
         List<String> items = List.of("Pepper - Julienne, Frozen", "Pepper - Red, Finger Hot");
         Map<String, List<String>> expected = new HashMap<>();
         expected.put("Next day shipping", List.of("Pepper - Julienne, Frozen", "Pepper - Red, Finger Hot"));
@@ -46,7 +47,6 @@ public class BasketSplitterTest {
 
     @Test
     public void splitShouldReturnMapWithLeastDeliveryGroups2() {
-        var basket = new BasketSplitter("C:\\Users\\darek\\IdeaProjects\\untitled1\\src\\test\\java\\com\\ocado\\basket\\config.json");
         List<String> items = List.of("Dried Peach", "Cake - Miini Cheesecake Cherry", "Spinach - Frozen", "Cabbage - Nappa");
         Map<String, List<String>> expected = new HashMap<>();
         expected.put("Courier", List.of("Cabbage - Nappa", "Cake - Miini Cheesecake Cherry", "Dried Peach"));
@@ -59,6 +59,28 @@ public class BasketSplitterTest {
     "Cake - Miini Cheesecake Cherry": ["Courier"],
     "Dried Peach": ["Same day delivery", "Courier"],
      */
+
+    @Test
+    public void splitShouldReturnMapWithLeastDeliveryGroups3() {
+        List<String> items = List.of("Cookies Oatmeal Raisin", "Sugar - Cubes", "Sole - Dover, Whole, Fresh",
+         "Juice - Ocean Spray Cranberry", "Garlic - Peeled", "Puree - Strawberry");
+        Map<String, List<String>> expected = new HashMap<>();
+        expected.put("Pick-up point", List.of("Cookies Oatmeal Raisin", "Juice - Ocean Spray Cranberry"));
+        expected.put("In-store pick-up", List.of("Sole - Dover, Whole, Fresh", "Puree - Strawberry"));
+        expected.put("Same day delivery", List.of("Sugar - Cubes", "Garlic - Peeled"));
+        Assert.assertEquals(expected, basket.split(items));
+    }
+    /*
+    "Cookies Oatmeal Raisin": ["Pick-up point", "Parcel locker"],
+    "Sole - Dover, Whole, Fresh": ["In-store pick-up"],
+    "Sugar - Cubes": ["Next day shipping", "Same day delivery"],
+    "Juice - Ocean Spray Cranberry": ["Pick-up point"],
+    "Garlic - Peeled": ["Same day delivery"],
+    "Puree - Strawberry": ["In-store pick-up", "Mailbox delivery", "Express Collection", "Next day shipping"],
+    */ 
+
+
+
 }
 
         /*

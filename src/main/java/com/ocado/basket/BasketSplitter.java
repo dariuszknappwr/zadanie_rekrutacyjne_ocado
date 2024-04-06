@@ -29,38 +29,28 @@ public class BasketSplitter {
             throw new RuntimeException(e);
         }
     }
+
     public Map<String, List<String>> split(List<String> items) {
 
         //get map of items and their delivery methods
         var itemsMap = filterConfigByItems(items);
-        System.out.println("Items Map: " + itemsMap);
 
         //get all unique delivery methods for these items
         Set<String> deliveryMethods = itemsMap.values().stream().flatMap(List::stream).collect(Collectors.toSet());
 
-        //System.out.println("Delivery methods: " + deliveryMethods);
-
         //get all permutations of delivery methods
         List<List<String>> permutations = permute(new ArrayList<>(deliveryMethods));
 
-        //System.out.println("Permutations: " + permutations);
-
-
-        
+        //find the best method among all permutations
         Map<String, List<String>> bestMethodYet = new HashMap<String, List<String>>();
         for (List<String> permutation : permutations) {
             Map<String, List<String>> currentMethod = new HashMap<String, List<String>>();
             Map<String, List<String>> itemsWithMethods = new HashMap<String, List<String>>(itemsMap);
-            if (bestMethodYet.isEmpty()) {
-                Map<String, List<String>>tmpMethod = new HashMap<>(itemsWithMethods);
-                bestMethodYet = new HashMap<>(tmpMethod);
-                //System.out.println("--------------------Best method Yet: " + bestMethodYet);
-            }
+
             for (String method : permutation) {
                 if(itemsWithMethods.isEmpty()){
                     break;
                 }
-                //System.out.println("Items for method: " + itemsWithMethods);
                 //get all items that can be delivered by this method
                 Iterator<Map.Entry<String, List<String>>> iterator = itemsWithMethods.entrySet().iterator();
                 while (iterator.hasNext()) {
@@ -73,16 +63,20 @@ public class BasketSplitter {
                         //if list exists, add item to it
                         currentMethod.get(method).add(entry.getKey());
 
+                        //remove item from the list
                         iterator.remove();
                     }
                 }
             }
-
-            if(currentMethod.size() == 2) {
-                //System.out.println(currentMethod);
+            //for first iteration set best method to current method
+            if (bestMethodYet.isEmpty()) {
+                bestMethodYet = currentMethod;
+                continue;
             }
+            // algorithm divides items into smallest number of groups
             if (currentMethod.size() < bestMethodYet.size()) {
                 bestMethodYet = currentMethod;
+            // if the number of groups is the same, the algorithm chooses the one with the most items
             } else if (currentMethod.size() == bestMethodYet.size()) {
                 //get method with the most items
                 int maxCountcurrentMethod = 0;
@@ -107,8 +101,7 @@ public class BasketSplitter {
                 }
             }
         }
-        Map<String, List<String>> result = new HashMap<>(bestMethodYet);
-        return result;
+        return new HashMap<>(bestMethodYet);
     }
 
     public Map<String, List<String>> filterConfigByItems(List<String> items) {
