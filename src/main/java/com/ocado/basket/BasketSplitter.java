@@ -16,11 +16,12 @@ import java.util.stream.Collectors;
 
 public class BasketSplitter {
 
-    JSONObject config;
+    private JSONObject config;
 
     public BasketSplitter(String absolutePathToConfigFile) {
-        try {
-            config = (JSONObject) new JSONParser().parse(new FileReader(absolutePathToConfigFile));
+        // Using try-with-resources to automatically close the FileReader
+        try (FileReader reader = new FileReader(absolutePathToConfigFile)) {
+            config = (JSONObject) new JSONParser().parse(reader);
         } catch (IOException e) {
             System.out.println("Can't read config file");
             throw new RuntimeException(e);
@@ -31,77 +32,61 @@ public class BasketSplitter {
     }
 
     public Map<String, List<String>> split(List<String> items) {
+        var itemToMethodsMap = filterConfigByItems(items);
+        Set<String> deliveryMethods = itemToMethodsMap.values().stream().flatMap(List::stream).collect(Collectors.toSet());
+        List<List<String>> permutations =  Permutator.permute(new ArrayList<>(deliveryMethods));
 
-        //get map of items and their delivery methods
-        var itemsMap = filterConfigByItems(items);
-
-        //get all unique delivery methods for these items
-        Set<String> deliveryMethods = itemsMap.values().stream().flatMap(List::stream).collect(Collectors.toSet());
-
-        //get all permutations of delivery methods
-        List<List<String>> permutations = permute(new ArrayList<>(deliveryMethods));
-
-        //find the best method among all permutations
-        Map<String, List<String>> bestMethodYet = new HashMap<String, List<String>>();
+        Map<String, List<String>> bestMethodYet = new HashMap<>();
         for (List<String> permutation : permutations) {
-            Map<String, List<String>> currentMethod = new HashMap<String, List<String>>();
-            Map<String, List<String>> itemsWithMethods = new HashMap<String, List<String>>(itemsMap);
+            Map<String, List<String>> currentMethodItemsMap = new HashMap<>();
+            Map<String, List<String>> itemToMethodsMapCopy = new HashMap<>(itemToMethodsMap);
 
             for (String method : permutation) {
-                if(itemsWithMethods.isEmpty()){
+                if(itemToMethodsMapCopy.isEmpty()){
                     break;
                 }
-                //get all items that can be delivered by this method
-                Iterator<Map.Entry<String, List<String>>> iterator = itemsWithMethods.entrySet().iterator();
-                while (iterator.hasNext()) {
-                    Map.Entry<String, List<String>> entry = iterator.next();
-                    if (entry.getValue().contains(method)) {
-                        //if method doesn't exist yet
-                        if (!currentMethod.containsKey(method)) {
-                            currentMethod.put(method, new ArrayList<String>());
-                        }
-                        //if list exists, add item to it
-                        currentMethod.get(method).add(entry.getKey());
+                assignItemsToDeliveryMethod(currentMethodItemsMap, itemToMethodsMapCopy, method);
+            }
+            bestMethodYet = bestMethodYet.isEmpty() ? currentMethodItemsMap : checkIfMethodIsBetter(bestMethodYet, currentMethodItemsMap);
+        }
+        return bestMethodYet;
+    }
 
-                        //remove item from the list
-                        iterator.remove();
-                    }
-                }
-            }
-            //for first iteration set best method to current method
-            if (bestMethodYet.isEmpty()) {
-                bestMethodYet = currentMethod;
-                continue;
-            }
-            // algorithm divides items into smallest number of groups
-            if (currentMethod.size() < bestMethodYet.size()) {
-                bestMethodYet = currentMethod;
-            // if the number of groups is the same, the algorithm chooses the one with the most items
-            } else if (currentMethod.size() == bestMethodYet.size()) {
-                //get method with the most items
-                int maxCountcurrentMethod = 0;
-                int maxCountbestMethodYet = 0;
-                for (String method : currentMethod.keySet()) {
-                    // count the number of items for the current method
-                    int itemCount = currentMethod.get(method).size();
-                    if (itemCount > maxCountcurrentMethod) {
-                        maxCountcurrentMethod = itemCount;
-                    }
-                    // count the number of items for the best method yet
-                    if (bestMethodYet.containsKey(method)) {
-                        itemCount = bestMethodYet.get(method).size();
-                        if (itemCount > maxCountbestMethodYet) {
-                            maxCountbestMethodYet = itemCount;
-                        }
-                    }
-                }
-                //if current method has more items than the best method yet, then swap
-                if (maxCountcurrentMethod > maxCountbestMethodYet) {
-                    bestMethodYet = currentMethod;
-                }
+    private void assignItemsToDeliveryMethod(Map<String, List<String>> currentMethod, Map<String, List<String>> itemToMethodsMap, String method) {
+        //get all items that can be delivered by this method
+        Iterator<Map.Entry<String, List<String>>> iterator = itemToMethodsMap.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, List<String>> entry = iterator.next();
+            if (entry.getValue().contains(method)) {
+                //if method doesn't exist yet, then create new ArrayList
+                currentMethod.computeIfAbsent(method, k -> new ArrayList<>()).add(entry.getKey());
+                //remove item from itemToMethodsMap
+                iterator.remove();
             }
         }
-        return new HashMap<>(bestMethodYet);
+    }
+
+    private Map<String, List<String>> checkIfMethodIsBetter(Map<String, List<String>> bestMethodYet,
+            Map<String, List<String>> currentMethod) {
+        if (currentMethod.size() < bestMethodYet.size()) {
+            return currentMethod;
+        }
+        if (currentMethod.size() == bestMethodYet.size()) {
+            if (hasMoreItems(currentMethod, bestMethodYet)) {
+                return currentMethod;
+            }
+        }
+        return bestMethodYet;
+    }
+    
+    private boolean hasMoreItems(Map<String, List<String>> currentMethod, Map<String, List<String>> bestMethodYet) {
+        int maxCountCurrentMethod = getMaxItemCount(currentMethod);
+        int maxCountBestMethodYet = getMaxItemCount(bestMethodYet);
+        return maxCountCurrentMethod > maxCountBestMethodYet;
+    }
+    
+    private int getMaxItemCount(Map<String, List<String>> methodMap) {
+        return methodMap.values().stream().mapToInt(List::size).max().orElse(0);
     }
 
     public Map<String, List<String>> filterConfigByItems(List<String> items) {
@@ -117,30 +102,5 @@ public class BasketSplitter {
             }
         }
         return filteredConfig;
-    }
-
-    private static List<List<String>> permute(List<String> nums) {
-        List<List<String>> results = new ArrayList<>();
-        if (nums == null || nums.size() == 0) {
-            return results;
-        }
-        List<String> result = new ArrayList<>();
-        dfs(nums, results, result);
-        return results;
-    }
-
-    private static void dfs(List<String> nums, List<List<String>> results, List<String> result) {
-        if (nums.size() == result.size()) {
-            List<String> temp = new ArrayList<>(result);
-            results.add(temp);
-        }
-        for (int i = 0; i < nums.size(); i++) {
-            if (result.contains(nums.get(i))) {
-                continue;
-            }
-            result.add(nums.get(i));
-            dfs(nums, results, result);
-            result.remove(result.size() - 1);
-        }
     }
 }
